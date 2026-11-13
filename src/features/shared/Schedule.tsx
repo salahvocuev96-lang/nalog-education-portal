@@ -266,6 +266,8 @@ function SlotEditor({ groupId, weekday: wd, slot, onClose }: { groupId: string; 
   const [subjectId, setSubjectId] = useState(current?.subjectId ?? db.subjects[0]?.id ?? "");
   const [teacherId, setTeacherId] = useState(current?.teacherId ?? "");
   const [room, setRoom] = useState(current?.room ?? "");
+  const [custom, setCustom] = useState(false);
+  const [customName, setCustomName] = useState("");
   const confirm = useConfirm();
   // Сначала предлагаем преподавателей, у которых уже есть этот предмет
   const suggested = new Set(db.loads.filter((l) => l.subjectId === subjectId).map((l) => l.teacherId));
@@ -275,7 +277,20 @@ function SlotEditor({ groupId, weekday: wd, slot, onClose }: { groupId: string; 
   }, [teacherId, teachers]);
 
   const save = async () => {
-    const r = await act("schedule.setSlot", { groupId, weekday: wd, slot, subjectId, teacherId, room });
+    let sid = subjectId;
+    if (custom) {
+      const name = customName.trim();
+      if (!name) return toastResult({ ok: false, error: "Введите название предмета" });
+      const existing = db.subjects.find((s) => s.name.toLowerCase() === name.toLowerCase());
+      if (existing) {
+        sid = existing.id;
+      } else {
+        const cr = await act("subject.create", { name, graded: true });
+        if (!cr.ok) return toastResult(cr);
+        sid = (cr.data as { id: string }).id;
+      }
+    }
+    const r = await act("schedule.setSlot", { groupId, weekday: wd, slot, subjectId: sid, teacherId, room });
     toastResult(r);
     if (r.ok) onClose();
   };
@@ -295,9 +310,20 @@ function SlotEditor({ groupId, weekday: wd, slot, onClose }: { groupId: string; 
       </>}>
       <div className="space-y-4">
         <p className="text-sm text-muted">Время: {TIME_SLOTS[slot - 1].start}–{TIME_SLOTS[slot - 1].end}. Сервер проверит, что преподаватель и аудитория свободны.</p>
-        <Select label="Предмет" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-          {db.subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </Select>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-ink">Предмет</span>
+            <button type="button" onClick={() => { setCustom(!custom); setCustomName(""); }} className="text-xs text-brand-700 hover:underline">
+              {custom ? "← Выбрать из списка" : "Другой предмет / экзамен"}
+            </button>
+          </div>
+          {custom
+            ? <input className={inputCls} value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Название предмета или экзамена" autoFocus />
+            : <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+                {db.subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+          }
+        </div>
         <Select label="Преподаватель" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
           {teachers.map((t) => <option key={t.id} value={t.id}>{suggested.has(t.id) ? "★ " : ""}{t.name}</option>)}
         </Select>

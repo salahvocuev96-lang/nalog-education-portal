@@ -95,7 +95,7 @@ export const adminActions = {
     const s = { id: uid("s"), name: p.name, graded: p.graded };
     repo.insertSubject(c, s);
     log(c, u, "subject.create", "subject", s.id, s);
-    return ok("Предмет добавлен");
+    return ok("Предмет добавлен", { id: s.id });
   }),
   "subject.update": admin((c, u, raw) => {
     const p = z.object({ id, name, graded: z.boolean() }).parse(raw);
